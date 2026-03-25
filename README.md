@@ -29,7 +29,7 @@
 ### 安装
 
 ```bash
-git clone https://github.com/OWNER/notesys.git
+git clone https://github.com/meswarm/notesys.git
 cd notesys
 
 # 创建并激活虚拟环境

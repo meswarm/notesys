@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
 from src.agents.organizer.embedder import Embedder
@@ -139,6 +140,14 @@ app = FastAPI(
     description="AI-powered note management system with organize and query agents",
     version="0.1.0",
     lifespan=lifespan,
+)
+
+# CORS middleware — allow browser cross-origin requests
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Register routers

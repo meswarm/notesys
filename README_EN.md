@@ -29,7 +29,7 @@ Provides not only basic note storage but also automated categorization, extracti
 ### Installation
 
 ```bash
-git clone https://github.com/OWNER/notesys.git
+git clone https://github.com/meswarm/notesys.git
 cd notesys
 
 # Create and activate virtual environment
