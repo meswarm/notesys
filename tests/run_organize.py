@@ -20,6 +20,12 @@ INPUT_NOTE_PATH = "/home/txl/Code/meswarm/notes/vault/mytest.md"
 # 输出：整理结果保存到的文件路径（留空则不保存，仅打印）
 OUTPUT_RESULT_PATH = "/home/txl/Code/meswarm/notes/vault/mytest_ed.md"
 
+# 步骤开关（None = 使用服务端配置，True/False = 覆盖）
+ENABLE_IMAGE_SEMANTIC = None     # 图像语义提取
+ENABLE_NOTE_FORMAT = False        # 笔记内容整理
+ENABLE_CLASSIFY_AND_SAVE = False  # 分类 + 存储
+ENABLE_EMBEDDING = False          # 分块向量嵌入
+
 # ╚══════════════════════════════════════════════════════════════╝
 
 BASE_URL = "http://localhost:8000"
@@ -44,9 +50,19 @@ def main():
     # Step 1: 提交整理请求
     print(f"\n🔵 Step 1: 提交整理请求")
     try:
+        payload = {"markdown_content": note_content}
+        step_overrides = {
+            "enable_image_semantic": ENABLE_IMAGE_SEMANTIC,
+            "enable_note_format": ENABLE_NOTE_FORMAT,
+            "enable_classify_and_save": ENABLE_CLASSIFY_AND_SAVE,
+            "enable_embedding": ENABLE_EMBEDDING,
+        }
+        for key, val in step_overrides.items():
+            if val is not None:
+                payload[key] = val
         resp = httpx.post(
             f"{BASE_URL}/api/organize",
-            json={"markdown_content": note_content},
+            json=payload,
             timeout=10,
         )
     except httpx.ConnectError:

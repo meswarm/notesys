@@ -74,6 +74,31 @@ class ChunkingConfig(BaseModel):
     overlap_tokens: int = 50
 
 
+class OrganizeConfig(BaseModel):
+    """Organize pipeline feature toggles."""
+
+    enable_image_semantic: bool = True
+    enable_note_format: bool = True
+    enable_classify_and_save: bool = True
+    enable_embedding: bool = True
+
+
+class QueryConfig(BaseModel):
+    """Query pipeline feature toggles."""
+
+    enable_rewrite: bool = False
+    enable_synthesis: bool = False
+
+
+class SyncConfig(BaseModel):
+    """Vector store sync service configuration."""
+
+    enabled: bool = True
+    interval_seconds: int = 300  # 5 minutes
+    batch_limit: int = 20  # Max files per sync cycle
+    min_depth: int = 1  # Min directory depth (0=root, 1=at least one subfolder)
+
+
 class AppConfig(BaseModel):
     """Aggregated application configuration."""
 
@@ -82,6 +107,9 @@ class AppConfig(BaseModel):
     qdrant: QdrantConfig = Field(default_factory=QdrantConfig)
     note_storage: NoteStorageConfig = Field(default_factory=NoteStorageConfig)
     chunking: ChunkingConfig = Field(default_factory=ChunkingConfig)
+    organize: OrganizeConfig = Field(default_factory=OrganizeConfig)
+    query: QueryConfig = Field(default_factory=QueryConfig)
+    sync: SyncConfig = Field(default_factory=SyncConfig)
     categories: dict[str, list[str]] = Field(default_factory=dict)
     categories_path: str = "config/categories.yaml"
     uncategorized_label: str = "未分类"
@@ -130,6 +158,18 @@ class AppConfig(BaseModel):
         chunking_cfg = models_data.get("chunking", {})
         chunking = ChunkingConfig(**chunking_cfg) if chunking_cfg else ChunkingConfig()
 
+        # Parse organize config
+        organize_cfg = models_data.get("organize", {})
+        organize = OrganizeConfig(**organize_cfg) if organize_cfg else OrganizeConfig()
+
+        # Parse query config
+        query_cfg = models_data.get("query", {})
+        query = QueryConfig(**query_cfg) if query_cfg else QueryConfig()
+
+        # Parse sync config
+        sync_cfg = models_data.get("sync", {})
+        sync = SyncConfig(**sync_cfg) if sync_cfg else SyncConfig()
+
         # Categories file path (hot-loaded by NoteClassifier)
         categories_file = config_path / "categories.yaml"
         categories: dict[str, list[str]] = {}
@@ -144,6 +184,9 @@ class AppConfig(BaseModel):
             qdrant=qdrant,
             note_storage=note_storage,
             chunking=chunking,
+            organize=organize,
+            query=query,
+            sync=sync,
             categories=categories,
             categories_path=str(categories_file),
         )

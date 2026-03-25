@@ -56,3 +56,20 @@ note_storage:
 chunking:
   max_chunk_tokens: 500
   overlap_tokens: 50
+
+organize:
+  enable_image_semantic: true   # 是否启用图像语义提取（VL 模型调用）
+  enable_note_format: true      # 是否启用笔记内容整理（LLM 调用）
+  enable_classify_and_save: true # 是否启用分类+存储（LLM 调用 + 文件写入）
+  enable_embedding: true        # 是否启用分块向量嵌入（嵌入模型 + Qdrant）
+
+query:
+  enable_rewrite: false      # 是否启用查询词重写（LLM 调用，增加延迟）
+  enable_synthesis: false    # 是否启用结果综合整理（LLM 调用，增加延迟）
+
+sync:
+  enabled: true              # 是否启用定时向量同步
+  interval_seconds: 900      # 同步间隔（秒），默认 5 分钟
+  batch_limit: 20            # 每轮同步最多处理的文件数（控制 API 成本）
+  min_depth: 1               # 最小目录深度（0=根目录，1=至少一级子目录），根目录下的草稿文件不同步
+

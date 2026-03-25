@@ -21,6 +21,10 @@ class OrganizeRequest(BaseModel):
 
     markdown_content: str
     images_dir: Optional[str] = None
+    enable_image_semantic: Optional[bool] = None    # None = 使用配置文件默认值
+    enable_note_format: Optional[bool] = None       # None = 使用配置文件默认值
+    enable_classify_and_save: Optional[bool] = None  # None = 使用配置文件默认值
+    enable_embedding: Optional[bool] = None          # None = 使用配置文件默认值
 
 
 class OrganizeResponse(BaseModel):
@@ -58,6 +62,10 @@ async def organize_note(request: OrganizeRequest):
             await pipeline.run(
                 raw_markdown=request.markdown_content,
                 images_dir=request.images_dir,
+                enable_image_semantic=request.enable_image_semantic,
+                enable_note_format=request.enable_note_format,
+                enable_classify_and_save=request.enable_classify_and_save,
+                enable_embedding=request.enable_embedding,
                 event_callback=event_callback,
             )
         finally:

@@ -88,8 +88,16 @@ class FileManager:
             # Sanitize filename
             filename = self._sanitize_filename(filename)
 
-            tmp_path = target_dir / f".tmp_{filename}"
+            # Deduplicate: if file already exists, append _2, _3, etc.
+            stem = filename[:-3]  # remove .md
             final_path = target_dir / filename
+            counter = 2
+            while final_path.exists():
+                filename = f"{stem}_{counter}.md"
+                final_path = target_dir / filename
+                counter += 1
+
+            tmp_path = target_dir / f".tmp_{filename}"
 
             try:
                 async with aiofiles.open(tmp_path, "w", encoding="utf-8") as f:

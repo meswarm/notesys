@@ -21,6 +21,8 @@ class QueryRequest(BaseModel):
 
     query: str
     top_k: int = 10
+    enable_rewrite: Optional[bool] = None      # None = 使用配置文件默认值
+    enable_synthesis: Optional[bool] = None    # None = 使用配置文件默认值
 
 
 class QueryResponse(BaseModel):
@@ -57,6 +59,8 @@ async def query_notes(request: QueryRequest):
             await pipeline.run(
                 user_query=request.query,
                 top_k=request.top_k,
+                enable_rewrite=request.enable_rewrite,
+                enable_synthesis=request.enable_synthesis,
                 event_callback=event_callback,
             )
         finally:

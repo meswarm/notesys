@@ -16,13 +16,19 @@ import httpx
 # ╠══════════════════════════════════════════════════════════════╣
 
 # 查询关键词
-QUERY = "Windows如何禁用更新啊?"
+QUERY = "Linux中解压压缩包的命令是啥?"
 
 # 输出：查询结果保存到的 Markdown 文件路径（留空则不保存，仅打印）
 OUTPUT_RESULT_PATH = "/home/txl/Code/meswarm/notes/vault/mytest_result.md"
 
 # 检索返回的最大结果数
 TOP_K = 10
+
+# 是否启用查询词重写（None = 使用服务端配置，True/False = 覆盖）
+ENABLE_REWRITE = None
+
+# 是否启用结果综合整理（None = 使用服务端配置，True/False = 覆盖）
+ENABLE_SYNTHESIS = None
 
 # ╚══════════════════════════════════════════════════════════════╝
 
@@ -40,9 +46,14 @@ def main():
     # Step 1: 提交查询请求
     print(f"\n[1] 提交查询请求")
     try:
+        payload = {"query": QUERY, "top_k": TOP_K}
+        if ENABLE_REWRITE is not None:
+            payload["enable_rewrite"] = ENABLE_REWRITE
+        if ENABLE_SYNTHESIS is not None:
+            payload["enable_synthesis"] = ENABLE_SYNTHESIS
         resp = httpx.post(
             f"{BASE_URL}/api/query",
-            json={"query": QUERY, "top_k": TOP_K},
+            json=payload,
             timeout=10,
         )
     except httpx.ConnectError:

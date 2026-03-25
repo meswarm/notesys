@@ -279,3 +279,70 @@ class VectorStore:
 
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, _sync_delete)
+
+    async def list_all_note_paths(self) -> set[str]:
+        """Get all unique note_path values from the vector store.
+
+        Uses Qdrant's scroll API to paginate through all points,
+        collecting the distinct note_path payload values.
+
+        Returns:
+            Set of unique note_path strings.
+        """
+        import asyncio
+
+        def _sync_scroll():
+            paths: set[str] = set()
+            offset = None
+
+            while True:
+                results, next_offset = self._client.scroll(
+                    collection_name=self._collection,
+                    limit=1000,
+                    offset=offset,
+                    with_payload=["note_path"],
+                    with_vectors=False,
+                )
+
+                for point in results:
+                    if point.payload and "note_path" in point.payload:
+                        paths.add(point.payload["note_path"])
+
+                if next_offset is None:
+                    break
+                offset = next_offset
+
+            return paths
+
+        loop = asyncio.get_event_loop()
+        paths = await loop.run_in_executor(None, _sync_scroll)
+        logger.info(f"Found {len(paths)} unique note paths in vector store")
+        return paths
+
+    async def delete_all(self) -> None:
+        """Delete all points in the collection (for full rebuild).
+
+        Drops and recreates the collection to ensure a clean state.
+        """
+        import asyncio
+
+        def _sync_delete_all():
+            self._client.delete_collection(collection_name=self._collection)
+            logger.info(f"Deleted collection '{self._collection}'")
+
+            # Recreate with same config
+            self._client.create_collection(
+                collection_name=self._collection,
+                vectors_config={
+                    "dense": VectorParams(
+                        size=self._dense_dim,
+                        distance=Distance.COSINE,
+                    )
+                },
+                sparse_vectors_config={
+                    "sparse": SparseVectorParams(
+                        index=SparseIndexParams(on_disk=False),
+                    )
+                },
+            )
+            logger.info(f"Recreated collection '{self._collection}'")
