@@ -1,0 +1,44 @@
+# config/categories.yaml
+# 笔记分类枚举表 - 模型优先从此表中选择
+
+categories:
+  操作系统:
+    - Linux
+    - Windows
+    - macOS
+  编程:
+    - Python
+    - Go
+    - JavaScript
+    - TypeScript
+    - Rust
+    - Java
+    - "C/C++"
+  工具:
+    - Docker
+    - Git
+    - "VS Code"
+    - Vim
+  网络:
+    - 网络协议
+    - 网络安全
+    - Web开发
+  数据库:
+    - MySQL
+    - PostgreSQL
+    - Redis
+    - MongoDB
+  AI与机器学习:
+    - 大模型
+    - 深度学习
+    - NLP
+  硬件:
+    - 树莓派
+    - Arduino
+    - 嵌入式
+  其他:
+    - 生活
+    - 学习方法
+    - 项目管理
+
+

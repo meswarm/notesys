@@ -1,0 +1,55 @@
+# === OS files ===
+.DS_Store
+Desktop.ini
+Thumbs.db
+._*
+
+# === Editor / IDE ===
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# === Python ===
+__pycache__/
+*.py[cod]
+*$py.class
+
+# === Virtual environments ===
+.venv/
+venv/
+env/
+.python-version
+
+# === Distribution ===
+dist/
+build/
+*.egg-info/
+*.egg
+
+# === Cache ===
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# === Environment & secrets ===
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+
+# === Project specific / Privacy ===
+/*.md
+!/README.md
+!/README_EN.md
+/data/
+/notes/
+/.agents/
