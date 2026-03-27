@@ -91,10 +91,16 @@ class ImageExtractor:
                 logger.warning(f"Empty description for image: {img_path}")
                 continue
 
-            # Replace alt text in Markdown
+            # Replace alt text in Markdown (preserve original path + optional title)
             escaped_path = re.escape(img_path)
-            pattern = rf"!\[[^\]]*\]\({escaped_path}\)"
-            new_text = f"![{description}]({img_path})"
+            title_suffix = img.get("title", "")
+            if title_suffix:
+                escaped_suffix = re.escape(f' "{title_suffix}"')
+                pattern = rf"!\[[^\]]*\]\({escaped_path}{escaped_suffix}\)"
+                new_text = f'![{description}]({img_path} "{title_suffix}")'
+            else:
+                pattern = rf"!\[[^\]]*\]\({escaped_path}\)"
+                new_text = f"![{description}]({img_path})"
             new_content = re.sub(pattern, lambda _: new_text, updated_content, count=1)
 
             if new_content != updated_content:
@@ -112,16 +118,25 @@ class ImageExtractor:
 
     @staticmethod
     def _find_images(markdown_content: str) -> list[dict]:
-        """Find all image references with their line numbers."""
-        pattern = re.compile(r"!\[([^\]]*)\]\(([^)]+)\)")
+        """Find all image references with their line numbers.
+
+        Handles optional Markdown title attribute:
+            ![alt](path)              → path only
+            ![alt](path "title")      → path + title separated
+        """
+        # Group 1: alt text, Group 2: path (no quotes/spaces), Group 3: optional title
+        pattern = re.compile(r'!\[([^\]]*)\]\((\S+?)(?:\s+"([^"]*)")?\)')
         images = []
         for idx, line in enumerate(markdown_content.splitlines()):
             for m in pattern.finditer(line):
-                images.append({
+                entry = {
                     "alt": m.group(1),
                     "path": m.group(2),
                     "line": idx,
-                })
+                }
+                if m.group(3) is not None:
+                    entry["title"] = m.group(3)
+                images.append(entry)
         return images
 
     @staticmethod
