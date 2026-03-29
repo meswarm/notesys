@@ -143,6 +143,11 @@ class OrganizerPipeline:
                 classification = await self._note_classifier.classify(content)
                 await emit(progress_event("note_classify", 0.65, f"分类: {classification.category}/{classification.subcategory}"))
 
+                # Add date stamp at the top before saving
+                from datetime import datetime
+                date_str = datetime.now().strftime("%Y年%m月%d日")
+                content = f"{date_str}\n\n{content}"
+
                 await emit(progress_event("file_save", 0.70, "正在保存笔记文件..."))
                 note_path = await self._file_manager.safe_write(
                     category=classification.category,
