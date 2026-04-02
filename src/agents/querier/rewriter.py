@@ -59,6 +59,7 @@ class QueryRewriter:
             messages=messages,
             step="query_rewrite",
             max_retries=max_retries,
+            timeout=60,
         )
 
         parsed = validate_json_output(response.content)

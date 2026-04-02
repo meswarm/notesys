@@ -191,6 +191,7 @@ class ImageExtractor:
             messages=messages,
             step="image_semantic",
             max_retries=max_retries,
+            timeout=60,
         )
 
         # Clean up: strip quotes, whitespace, markdown wrappers

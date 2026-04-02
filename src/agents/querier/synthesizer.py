@@ -115,6 +115,7 @@ class AnswerSynthesizer:
             messages=messages,
             step="query_synthesize",
             max_retries=2,
+            timeout=120,
         )
 
         answer = response.content.strip()

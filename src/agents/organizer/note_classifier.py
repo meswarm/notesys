@@ -159,7 +159,8 @@ class NoteClassifier:
                 model_config=self._config,
                 messages=messages,
                 step="note_classify",
-                max_retries=2,
+                max_retries=3,
+                timeout=60,
             )
 
             logger.info(f"Classifier raw response (attempt {attempt+1}): [{response.content[:500]}]")

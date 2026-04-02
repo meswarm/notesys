@@ -52,6 +52,7 @@ class NoteFormatter:
             messages=messages,
             step="note_format",
             max_retries=max_retries,
+            timeout=180,
         )
 
         formatted = response.content.strip()

@@ -1,29 +1,28 @@
-"""Unified LLM client wrapping DashScope APIs.
+"""Unified LLM client wrapping OpenAI-compatible and DashScope APIs.
 
 Handles:
-- Text chat via DashScope MultiModalConversation (qwen3.5/qwen3-vl series)
+- Text chat via OpenAI-compatible API (streaming) for all qwen models
+- Vision chat via OpenAI-compatible API (streaming) for qwen3-vl models
 - Text embedding via DashScope TextEmbedding (text-embedding-v4)
+  (DashScope SDK retained for text_type, sparse_embedding, instruct features)
 - Automatic token usage tracking
-- Retry with exponential backoff
+- Configurable timeout per request
 """
 
+import asyncio
 import os
 import time
 from typing import Any, Optional
 
-import dashscope
-from dashscope import MultiModalConversation, TextEmbedding
 from loguru import logger
+from openai import AsyncOpenAI
 from pydantic import BaseModel
-from tenacity import (
-    retry,
-    retry_if_exception_type,
-    stop_after_attempt,
-    wait_exponential,
-)
 
 from src.core.config import ModelConfig
 from src.core.usage_tracker import TokenUsage, UsageTracker
+
+# DashScope base URL for OpenAI-compatible mode
+_DASHSCOPE_OPENAI_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 
 
 class LLMResponse(BaseModel):
@@ -47,10 +46,8 @@ class EmbeddingResult(BaseModel):
 class LLMClient:
     """Unified client for all LLM API calls.
 
-    All model calls go through this class, which handles:
-    - Provider-specific API differences
-    - Token usage tracking
-    - Retry logic
+    Chat calls use OpenAI-compatible API with streaming for lower latency.
+    Embedding calls use DashScope SDK for text_type/sparse/instruct features.
     """
 
     def __init__(self, api_key: str, usage_tracker: Optional[UsageTracker] = None):
@@ -63,7 +60,14 @@ class LLMClient:
         self._api_key = api_key
         self._usage_tracker = usage_tracker or UsageTracker()
 
-        # Set DashScope API key globally
+        # OpenAI-compatible async client for chat
+        self._openai_client = AsyncOpenAI(
+            api_key=api_key,
+            base_url=_DASHSCOPE_OPENAI_BASE_URL,
+        )
+
+        # Set DashScope API key for embedding calls
+        import dashscope
         dashscope.api_key = api_key
 
     @property
@@ -75,16 +79,16 @@ class LLMClient:
         model_config: ModelConfig,
         messages: list[dict[str, Any]],
         step: str = "unknown",
+        timeout: float = 120,
         **kwargs,
     ) -> LLMResponse:
-        """Send a chat request to the LLM.
-
-        Uses DashScope MultiModalConversation API for qwen3.5/qwen3-vl models.
+        """Send a streaming chat request via OpenAI-compatible API.
 
         Args:
             model_config: Model configuration.
-            messages: List of message dicts with 'role' and 'content'.
+            messages: List of message dicts (OpenAI format).
             step: Pipeline step name (for tracking).
+            timeout: Request timeout in seconds (default 120s).
             **kwargs: Additional parameters passed to the API.
 
         Returns:
@@ -93,30 +97,34 @@ class LLMClient:
         start_time = time.time()
 
         try:
-            response = await self._call_multimodal_chat(model_config, messages, **kwargs)
+            # Normalize messages to OpenAI format
+            openai_messages = self._normalize_messages(messages)
+
+            response = await self._stream_chat(
+                model_config, openai_messages, timeout, **kwargs
+            )
         except Exception as e:
             logger.error(f"LLM chat call failed for step '{step}': {e}")
             raise
 
         latency_ms = (time.time() - start_time) * 1000
 
-        # Parse response
-        llm_response = self._parse_chat_response(response, model_config)
-
         # Track usage
         usage = TokenUsage(
             timestamp=time.strftime("%Y-%m-%dT%H:%M:%S"),
             model=model_config.model,
             step=step,
-            input_tokens=llm_response.input_tokens,
-            output_tokens=llm_response.output_tokens,
-            total_tokens=llm_response.total_tokens,
+            input_tokens=response.input_tokens,
+            output_tokens=response.output_tokens,
+            total_tokens=response.total_tokens,
             latency_ms=latency_ms,
-            cost=self._estimate_cost(model_config.model, llm_response.input_tokens, llm_response.output_tokens),
+            cost=self._estimate_cost(
+                model_config.model, response.input_tokens, response.output_tokens
+            ),
         )
         await self._usage_tracker.record(usage)
 
-        return llm_response
+        return response
 
     async def chat_with_retry(
         self,
@@ -124,6 +132,7 @@ class LLMClient:
         messages: list[dict[str, Any]],
         step: str = "unknown",
         max_retries: int = 3,
+        timeout: float = 120,
         **kwargs,
     ) -> LLMResponse:
         """Chat with automatic retry on failure.
@@ -133,6 +142,7 @@ class LLMClient:
             messages: Message list.
             step: Pipeline step name.
             max_retries: Maximum number of retry attempts.
+            timeout: Per-request timeout in seconds.
             **kwargs: Additional API parameters.
 
         Returns:
@@ -141,15 +151,16 @@ class LLMClient:
         last_error = None
         for attempt in range(max_retries):
             try:
-                return await self.chat(model_config, messages, step=step, **kwargs)
+                return await self.chat(
+                    model_config, messages, step=step, timeout=timeout, **kwargs
+                )
             except Exception as e:
                 last_error = e
-                wait_time = 2 ** attempt  # Exponential backoff: 1s, 2s, 4s
+                wait_time = 2**attempt  # Exponential backoff: 1s, 2s, 4s
                 logger.warning(
                     f"Chat attempt {attempt + 1}/{max_retries} failed for step '{step}': {e}. "
                     f"Retrying in {wait_time}s..."
                 )
-                import asyncio
                 await asyncio.sleep(wait_time)
 
         raise RuntimeError(
@@ -166,6 +177,9 @@ class LLMClient:
         instruct: Optional[str] = None,
     ) -> EmbeddingResult:
         """Generate embeddings using DashScope TextEmbedding API.
+
+        DashScope SDK is retained here because the OpenAI-compatible API
+        does not support text_type, output_type (sparse), or instruct params.
 
         Args:
             texts: List of texts to embed (max 10 per batch).
@@ -228,90 +242,171 @@ class LLMClient:
                 )
             except Exception as e:
                 last_error = e
-                wait_time = 2 ** attempt
+                wait_time = 2**attempt
                 logger.warning(
                     f"Embed attempt {attempt + 1}/{max_retries} failed: {e}. "
                     f"Retrying in {wait_time}s..."
                 )
-                import asyncio
                 await asyncio.sleep(wait_time)
 
-        raise RuntimeError(f"Embedding failed after {max_retries} attempts: {last_error}")
+        raise RuntimeError(
+            f"Embedding failed after {max_retries} attempts: {last_error}"
+        )
 
     # ---- Private methods ----
 
-    async def _call_multimodal_chat(
+    def _normalize_messages(
+        self, messages: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """Normalize messages from DashScope format to OpenAI format.
+
+        DashScope format:
+            {"role": "user", "content": [{"text": "..."}, {"image": "file://..."}]}
+        OpenAI format:
+            {"role": "user", "content": [{"type": "text", "text": "..."},
+                                          {"type": "image_url", "image_url": {"url": "..."}}]}
+
+        Also handles plain string content (already OpenAI compatible).
+        """
+        normalized = []
+        for msg in messages:
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+
+            # Already a string — pass through
+            if isinstance(content, str):
+                normalized.append({"role": role, "content": content})
+                continue
+
+            # List of content parts — convert each
+            if isinstance(content, list):
+                parts = []
+                for item in content:
+                    if isinstance(item, str):
+                        parts.append({"type": "text", "text": item})
+                    elif isinstance(item, dict):
+                        if "text" in item:
+                            parts.append({"type": "text", "text": item["text"]})
+                        elif "image" in item:
+                            # Convert DashScope image format to OpenAI image_url
+                            image_url = item["image"]
+                            # Handle local file:// URIs — convert to base64
+                            if image_url.startswith("file://"):
+                                base64_url = self._file_to_base64_url(image_url)
+                                if base64_url:
+                                    parts.append({
+                                        "type": "image_url",
+                                        "image_url": {"url": base64_url},
+                                    })
+                                else:
+                                    logger.warning(
+                                        f"Failed to read local image: {image_url}"
+                                    )
+                            else:
+                                # HTTP/HTTPS URL — pass through
+                                parts.append({
+                                    "type": "image_url",
+                                    "image_url": {"url": image_url},
+                                })
+                        elif "type" in item:
+                            # Already OpenAI format
+                            parts.append(item)
+                    else:
+                        parts.append({"type": "text", "text": str(item)})
+                normalized.append({"role": role, "content": parts})
+            else:
+                normalized.append({"role": role, "content": str(content)})
+
+        return normalized
+
+    @staticmethod
+    def _file_to_base64_url(file_uri: str) -> Optional[str]:
+        """Convert a file:// URI to a base64 data URL."""
+        import base64
+        import mimetypes
+        from pathlib import Path
+
+        file_path = Path(file_uri.replace("file://", ""))
+        if not file_path.exists():
+            return None
+
+        mime_type, _ = mimetypes.guess_type(str(file_path))
+        if not mime_type:
+            mime_type = "image/jpeg"  # fallback
+
+        data = file_path.read_bytes()
+        b64 = base64.b64encode(data).decode("utf-8")
+        return f"data:{mime_type};base64,{b64}"
+
+    async def _stream_chat(
         self,
         model_config: ModelConfig,
         messages: list[dict[str, Any]],
+        timeout: float = 120,
         **kwargs,
-    ) -> Any:
-        """Call DashScope MultiModalConversation API.
+    ) -> LLMResponse:
+        """Stream chat completion via OpenAI-compatible API.
 
-        This is used for qwen3.5 and qwen3-vl series models.
-        Runs synchronous SDK call in an executor to avoid blocking the event loop.
+        Collects all chunks into a complete response.
         """
-        import asyncio
+        call_kwargs: dict[str, Any] = {
+            "model": model_config.model,
+            "messages": messages,
+            "max_tokens": model_config.max_tokens,
+            "stream": True,
+            "stream_options": {"include_usage": True},
+            "timeout": timeout,
+        }
 
-        def _sync_call():
-            call_kwargs = {
-                "api_key": self._api_key,
-                "model": model_config.model,
-                "messages": messages,
-                "max_tokens": model_config.max_tokens,
-            }
+        # Temperature (not used in thinking mode)
+        if not model_config.enable_thinking:
+            call_kwargs["temperature"] = model_config.temperature
 
-            # Add temperature if not thinking mode
-            if not model_config.enable_thinking:
-                call_kwargs["temperature"] = model_config.temperature
+        # Thinking mode
+        if model_config.enable_thinking:
+            call_kwargs["extra_body"] = {"enable_thinking": True}
 
-            # Add thinking mode parameter
-            if model_config.enable_thinking:
-                call_kwargs["enable_thinking"] = True
+        # Merge additional kwargs
+        call_kwargs.update(kwargs)
 
-            # Merge any additional kwargs
-            call_kwargs.update(kwargs)
-
-            return MultiModalConversation.call(**call_kwargs)
-
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, _sync_call)
-
-    def _parse_chat_response(self, response: Any, model_config: ModelConfig) -> LLMResponse:
-        """Parse DashScope MultiModalConversation response."""
-        if response.status_code != 200:
-            raise RuntimeError(
-                f"DashScope API error: status={response.status_code}, "
-                f"code={response.code}, message={response.message}"
-            )
-
-        message = response.output.choices[0].message
-
-        # Extract content
-        content = ""
-        if isinstance(message.content, list):
-            # MultiModal response format: [{"text": "..."}]
-            for item in message.content:
-                if isinstance(item, dict) and "text" in item:
-                    content += item["text"]
-        elif isinstance(message.content, str):
-            content = message.content
-
-        # Extract reasoning content (for thinking mode)
-        reasoning_content = getattr(message, "reasoning_content", "") or ""
-
-        # Extract token usage
-        usage = getattr(response, "usage", None)
+        content_parts: list[str] = []
+        reasoning_parts: list[str] = []
         input_tokens = 0
         output_tokens = 0
-        if usage:
-            input_tokens = getattr(usage, "input_tokens", 0) or 0
-            output_tokens = getattr(usage, "output_tokens", 0) or 0
+
+        stream = await self._openai_client.chat.completions.create(**call_kwargs)
+
+        async for chunk in stream:
+            if not chunk.choices and hasattr(chunk, "usage") and chunk.usage:
+                # Final chunk with usage stats only
+                input_tokens = chunk.usage.prompt_tokens or 0
+                output_tokens = chunk.usage.completion_tokens or 0
+                continue
+
+            if not chunk.choices:
+                continue
+
+            delta = chunk.choices[0].delta
+
+            # Collect reasoning content (thinking mode)
+            if hasattr(delta, "reasoning_content") and delta.reasoning_content:
+                reasoning_parts.append(delta.reasoning_content)
+
+            # Collect main content
+            if delta.content:
+                content_parts.append(delta.content)
+
+            # Check usage on each chunk (some providers include it)
+            if hasattr(chunk, "usage") and chunk.usage:
+                input_tokens = chunk.usage.prompt_tokens or input_tokens
+                output_tokens = chunk.usage.completion_tokens or output_tokens
+
+        content = "".join(content_parts)
+        reasoning = "".join(reasoning_parts)
 
         return LLMResponse(
             content=content,
-            reasoning_content=reasoning_content,
-            raw_response=response,
+            reasoning_content=reasoning,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             total_tokens=input_tokens + output_tokens,
@@ -330,7 +425,7 @@ class LLMClient:
         Must use DashScope SDK (not OpenAI compatible) for text_type,
         output_type, and instruct parameters.
         """
-        import asyncio
+        from dashscope import TextEmbedding
 
         def _sync_call():
             call_kwargs = {
@@ -379,7 +474,9 @@ class LLMClient:
 
         return {"embeddings": normalized_embeddings, "total_tokens": total_tokens}
 
-    def _estimate_cost(self, model: str, input_tokens: int, output_tokens: int) -> float:
+    def _estimate_cost(
+        self, model: str, input_tokens: int, output_tokens: int
+    ) -> float:
         """Estimate API call cost based on model pricing.
 
         Pricing (per 1000 tokens, in RMB):
