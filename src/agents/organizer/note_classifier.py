@@ -29,11 +29,31 @@ class NoteClassifier:
         self._llm = llm_client
         self._config = model_config
         self._categories_path = Path(categories_path)
-        self._prompt_template = self._load_prompt()
+        self._system_template = self._load_prompt()
 
     def _load_prompt(self) -> str:
         prompt_path = Path("src/llm/prompts/note_classify.txt")
         return prompt_path.read_text(encoding="utf-8")
+
+    @staticmethod
+    def _extract_headings(markdown_content: str) -> str:
+        """Extract h1/h2/h3 headings from markdown content.
+
+        Falls back to first 500 characters if no headings are found.
+
+        Args:
+            markdown_content: Raw markdown text.
+
+        Returns:
+            Heading lines joined by newline, or content preview as fallback.
+        """
+        headings = re.findall(r"^(#{1,3}\s+.+)$", markdown_content, re.MULTILINE)
+        if headings:
+            return "\n".join(headings)
+        # Fallback: no headings found, use content preview
+        preview = markdown_content[:500].strip()
+        logger.info("No headings found in note, falling back to content preview")
+        return preview
 
     def _load_categories(self) -> dict[str, list[str]]:
         """Load categories from YAML file (hot-reload on every call)."""
@@ -140,18 +160,18 @@ class NoteClassifier:
         # Hot-reload categories from disk
         categories = self._load_categories()
 
+        # Build system prompt: instructions + categories
         categories_text = self._format_categories_text(categories)
-        prompt = (
-            self._prompt_template
-            .replace("{categories_text}", categories_text)
-            .replace("{markdown_content}", markdown_content[:3000])
-        )
+        system_prompt = self._system_template.replace("{categories_text}", categories_text)
 
+        # Build user prompt: headings only (with fallback)
+        headings_text = self._extract_headings(markdown_content)
+        user_content = f"以下是待分类笔记的标题层级：\n\n{headings_text}\n\n请按照规则输出分类结果。"
+
+        system_message = {"role": "system", "content": [{"text": system_prompt}]}
         messages = [
-            {
-                "role": "user",
-                "content": [{"text": prompt}],
-            }
+            system_message,
+            {"role": "user", "content": [{"text": user_content}]},
         ]
 
         for attempt in range(max_retries):
@@ -161,6 +181,7 @@ class NoteClassifier:
                 step="note_classify",
                 max_retries=3,
                 timeout=60,
+                response_format={"type": "json_object"},
             )
 
             logger.info(f"Classifier raw response (attempt {attempt+1}): [{response.content[:500]}]")
@@ -199,12 +220,15 @@ class NoteClassifier:
                     f"Raw response: [{response.content[:300]}]"
                 )
 
-            # Retry with enhanced prompt
-            prompt = build_format_retry_prompt(
-                prompt,
+            # Retry with enhanced user prompt (keep system message unchanged)
+            user_content = build_format_retry_prompt(
+                user_content,
                 '输出必须是 JSON: {"category": "分类名称", "subcategory": "子分类名称", "title": "简洁标题"}'
             )
-            messages = [{"role": "user", "content": [{"text": prompt}]}]
+            messages = [
+                system_message,
+                {"role": "user", "content": [{"text": user_content}]},
+            ]
 
         # Fallback
         logger.warning("Classification failed after all retries, falling back to uncategorized")

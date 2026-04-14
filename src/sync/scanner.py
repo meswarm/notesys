@@ -1,6 +1,7 @@
 """File scanner for detecting note changes against the vector store."""
 
 import hashlib
+import json
 import os
 from pathlib import Path
 from typing import Optional
@@ -34,11 +35,14 @@ class FileScanner:
     2. Accurate confirm: SHA-256 content hash for candidates
     """
 
+    _CACHE_FILENAME = ".notesys_cache.json"
+
     def __init__(self, root_path: str, min_depth: int = 0):
         self._root = Path(root_path)
         self._min_depth = min_depth
         # Cache of last-seen fingerprints for mtime/size fast-path
         self._last_fingerprints: dict[str, FileFingerprint] = {}
+        self._cache_loaded = False
 
     def scan_all_files(self) -> dict[str, FileFingerprint]:
         """Scan all .md files under the notes root.
@@ -104,16 +108,25 @@ class FileScanner:
             last = self._last_fingerprints.get(path)
 
             if last is None:
-                # First time seeing this file since service started,
-                # compute content hash and mark as modified to ensure freshness
+                # No cached fingerprint for this file
                 current.content_hash = self._compute_hash(path)
-                modified.append(path)
+                if self._cache_loaded:
+                    # Cache was loaded from disk but this file was not in it;
+                    # it may have been added while the service was offline.
+                    # Still compute hash and store, but mark as modified
+                    # only if the file is genuinely new to the cache.
+                    modified.append(path)
+                else:
+                    # No cache file exists (first-ever run or cache deleted);
+                    # treat all files as modified to ensure freshness.
+                    modified.append(path)
             elif current.mtime != last.mtime or current.size != last.size:
                 # mtime or size changed — compute hash to confirm real change
                 current.content_hash = self._compute_hash(path)
                 if current.content_hash != last.content_hash:
                     modified.append(path)
                 # else: file was touched but content didn't change, skip
+            # else: mtime and size unchanged — content is the same, skip
 
         # Update cache with current fingerprints
         for path, fp in disk_files.items():
@@ -176,3 +189,57 @@ class FileScanner:
             )
         except OSError as e:
             logger.warning(f"Failed to update fingerprint for {rel_path}: {e}")
+
+    def save_cache(self) -> None:
+        """Persist fingerprint cache to disk as JSON.
+
+        Writes to `<notes_root>/.notesys_cache.json`.
+        Called during application shutdown to preserve state across restarts.
+        """
+        cache_path = self._root / self._CACHE_FILENAME
+        try:
+            data = {
+                path: {
+                    "mtime": fp.mtime,
+                    "size": fp.size,
+                    "content_hash": fp.content_hash,
+                }
+                for path, fp in self._last_fingerprints.items()
+            }
+            cache_path.write_text(
+                json.dumps(data, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            logger.info(
+                f"Fingerprint cache saved: {len(data)} entries -> {cache_path}"
+            )
+        except OSError as e:
+            logger.warning(f"Failed to save fingerprint cache: {e}")
+
+    def load_cache(self) -> None:
+        """Load fingerprint cache from disk.
+
+        Reads from `<notes_root>/.notesys_cache.json`.
+        Called during application startup to restore state from last run.
+        """
+        cache_path = self._root / self._CACHE_FILENAME
+        if not cache_path.exists():
+            logger.info("No fingerprint cache found, starting fresh")
+            return
+
+        try:
+            raw = json.loads(cache_path.read_text(encoding="utf-8"))
+            for path, entry in raw.items():
+                self._last_fingerprints[path] = FileFingerprint(
+                    path=path,
+                    mtime=entry["mtime"],
+                    size=entry["size"],
+                    content_hash=entry.get("content_hash", ""),
+                )
+            self._cache_loaded = True
+            logger.info(
+                f"Fingerprint cache loaded: {len(self._last_fingerprints)} entries from {cache_path}"
+            )
+        except (json.JSONDecodeError, KeyError, OSError) as e:
+            logger.warning(f"Failed to load fingerprint cache, starting fresh: {e}")
+            self._last_fingerprints.clear()

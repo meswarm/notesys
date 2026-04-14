@@ -28,7 +28,7 @@ class ImageExtractor:
     def __init__(self, llm_client: LLMClient, model_config: ModelConfig):
         self._llm = llm_client
         self._config = model_config
-        self._prompt_template = self._load_prompt()
+        self._system_prompt = self._load_prompt()
 
     def _load_prompt(self) -> str:
         prompt_path = Path("src/llm/prompts/image_semantic.txt")
@@ -170,20 +170,21 @@ class ImageExtractor:
         max_retries: int,
     ) -> str:
         """Call multi-modal LLM to describe a single image."""
-        prompt_text = (
-            self._prompt_template
-            .replace("{image_reference}", image_reference)
-            .replace("{context}", context)
+        user_text = (
+            f"图片引用: {image_reference}\n"
+            f"上下文:\n{context}\n\n"
+            f"请为这张图片生成语义描述。"
         )
 
         messages = [
+            {"role": "system", "content": [{"text": self._system_prompt}]},
             {
                 "role": "user",
                 "content": [
                     {"image": image_uri},
-                    {"text": prompt_text},
+                    {"text": user_text},
                 ],
-            }
+            },
         ]
 
         response = await self._llm.chat_with_retry(

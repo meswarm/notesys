@@ -25,7 +25,7 @@ class QueryRewriter:
     def __init__(self, llm_client: LLMClient, model_config: ModelConfig):
         self._llm = llm_client
         self._config = model_config
-        self._prompt_template = self._load_prompt()
+        self._system_prompt = self._load_prompt()
 
     def _load_prompt(self) -> str:
         prompt_path = Path("src/llm/prompts/query_rewrite.txt")
@@ -45,13 +45,9 @@ class QueryRewriter:
         Returns:
             RewriteResult with rewritten query, keywords, and intent.
         """
-        prompt = self._prompt_template.replace("{user_query}", user_query)
-
         messages = [
-            {
-                "role": "user",
-                "content": [{"text": prompt}],
-            }
+            {"role": "system", "content": [{"text": self._system_prompt}]},
+            {"role": "user", "content": [{"text": user_query}]},
         ]
 
         response = await self._llm.chat_with_retry(
@@ -60,6 +56,7 @@ class QueryRewriter:
             step="query_rewrite",
             max_retries=max_retries,
             timeout=60,
+            response_format={"type": "json_object"},
         )
 
         parsed = validate_json_output(response.content)

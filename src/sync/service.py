@@ -80,6 +80,9 @@ class SyncService:
             logger.warning("SyncService already started")
             return
 
+        # Restore fingerprint cache from last run
+        self._scanner.load_cache()
+
         self._running = True
         self._task = asyncio.create_task(self._loop(), name="sync-service")
         logger.info(
@@ -97,6 +100,10 @@ class SyncService:
             except asyncio.CancelledError:
                 pass
             self._task = None
+
+        # Persist fingerprint cache for next startup
+        self._scanner.save_cache()
+
         logger.info("SyncService stopped")
 
     async def run_once(self) -> dict:

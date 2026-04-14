@@ -23,7 +23,7 @@ class AnswerSynthesizer:
         self._llm = llm_client
         self._config = model_config
         self._file_manager = file_manager
-        self._prompt_template = self._load_prompt()
+        self._system_prompt = self._load_prompt()
 
     def _load_prompt(self) -> str:
         prompt_path = Path("src/llm/prompts/query_synthesize.txt")
@@ -96,18 +96,15 @@ class AnswerSynthesizer:
 
         retrieved_notes_text = "\n\n---\n\n".join(retrieved_text_parts)
 
-        # Build prompt — only {user_query} and {retrieved_notes} need replacing
-        prompt = (
-            self._prompt_template
-            .replace("{user_query}", user_query)
-            .replace("{retrieved_notes}", retrieved_notes_text)
+        # Build messages with system/user separation
+        user_content = (
+            f"## 用户问题\n{user_query}\n\n"
+            f"## 检索到的笔记内容如下\n{retrieved_notes_text}"
         )
 
         messages = [
-            {
-                "role": "user",
-                "content": [{"text": prompt}],
-            }
+            {"role": "system", "content": [{"text": self._system_prompt}]},
+            {"role": "user", "content": [{"text": user_content}]},
         ]
 
         response = await self._llm.chat_with_retry(
