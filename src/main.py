@@ -11,7 +11,6 @@ from src.agents.organizer.pipeline import OrganizerPipeline
 from src.api.organize import router as organize_router
 from src.core.config import AppConfig
 from src.llm.client import LLMClient
-from src.storage.file_manager import FileManager
 
 
 @asynccontextmanager
@@ -22,25 +21,25 @@ async def lifespan(app: FastAPI):
     # Load configuration
     config = AppConfig.load("config")
 
-    # --- Validate NOTES_ROOT_PATH (fail-fast) ---
-    notes_root = Path(config.note_storage.root_path).resolve()
-    if config.env.notes_root_path == "./notes":
+    # --- Validate server-level NOTES_ROOT_PATH (soft warning only) ---
+    # notes_root_path can also be provided per-request; this is just the default.
+    default_root = config.note_storage.root_path
+    if default_root and default_root != "./notes":
+        root_path = Path(default_root).resolve()
+        if not root_path.exists():
+            logger.warning(
+                f"⚠️  Default NOTES_ROOT_PATH does not exist: {root_path}. "
+                "Requests that rely on the server default will fail unless "
+                "notes_root_path is supplied per-request."
+            )
+        else:
+            logger.info(f"📁 Default notes root: {root_path}")
+            config.note_storage.root_path = str(root_path)
+    else:
         logger.warning(
-            "⚠️  NOTES_ROOT_PATH is using the default value './notes'. "
-            "Set it explicitly in .env for production use."
+            "⚠️  NOTES_ROOT_PATH is not set (or using default './notes'). "
+            "All requests must supply notes_root_path explicitly."
         )
-    if not notes_root.exists():
-        raise RuntimeError(
-            f"Notes root directory does not exist: {notes_root}\n"
-            f"Set NOTES_ROOT_PATH in .env to a valid directory."
-        )
-    if not notes_root.is_dir():
-        raise RuntimeError(
-            f"NOTES_ROOT_PATH is not a directory: {notes_root}"
-        )
-    # Lock the resolved absolute path
-    config.note_storage.root_path = str(notes_root)
-    logger.info(f"📁 Notes root locked: {notes_root}")
 
     if not config.env.dashscope_api_key:
         logger.warning("⚠️  DASHSCOPE_API_KEY not set! LLM calls will fail.")
@@ -50,27 +49,18 @@ async def lifespan(app: FastAPI):
         api_key=config.env.dashscope_api_key,
     )
 
-    # Initialize file manager
-    file_manager = FileManager(
-        root_path=config.note_storage.root_path,
-        max_depth=config.note_storage.max_directory_depth,
-    )
-
-    # Initialize organizer pipeline
+    # Initialize organizer pipeline (FileManager is created per-request inside run())
     organizer_pipeline = OrganizerPipeline(
         config=config,
         llm_client=llm_client,
-        file_manager=file_manager,
     )
 
     # Store in app state for route handlers
     app.state.config = config
     app.state.llm_client = llm_client
-    app.state.file_manager = file_manager
     app.state.organizer_pipeline = organizer_pipeline
 
     logger.info("✅ NoteSystem Agent started successfully")
-    logger.info(f"  📁 Notes root: {config.note_storage.root_path}")
 
     yield  # Application is running
 
@@ -80,8 +70,11 @@ async def lifespan(app: FastAPI):
 # Create FastAPI app
 app = FastAPI(
     title="NoteSystem Agent",
-    description="AI-powered note management: image semantic extraction, formatting, and classification",
-    version="0.2.0",
+    description=(
+        "AI-powered note organization: image semantic extraction, formatting, classification. "
+        "Pass notes_root_path per-request to use any local directory."
+    ),
+    version="0.3.0",
     lifespan=lifespan,
 )
 
@@ -100,7 +93,7 @@ app.include_router(organize_router)
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
-    return {"status": "ok", "service": "notesys", "version": "0.2.0"}
+    return {"status": "ok", "service": "notesys", "version": "0.3.0"}
 
 
 @app.get("/")
@@ -108,8 +101,11 @@ async def root():
     """Root endpoint with API info."""
     return {
         "service": "NoteSystem Agent",
-        "version": "0.2.0",
-        "description": "Note organization: image extraction, formatting, classification",
+        "version": "0.3.0",
+        "description": (
+            "Note organization: image extraction, formatting, classification. "
+            "Pass notes_root_path per-request for multi-directory support."
+        ),
         "endpoints": {
             "organize": "POST /api/organize",
             "organize_stream": "GET /api/organize/{task_id}/stream",

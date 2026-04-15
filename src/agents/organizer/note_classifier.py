@@ -143,6 +143,7 @@ class NoteClassifier:
     async def classify(
         self,
         markdown_content: str,
+        categories: Optional[dict[str, list[str]]] = None,
         max_retries: int = 3,
     ) -> ClassificationResult:
         """Classify a note into a category.
@@ -152,13 +153,16 @@ class NoteClassifier:
 
         Args:
             markdown_content: Formatted note content.
+            categories: Pre-loaded category dict {category: [subcategory, ...]}.
+                If None, falls back to loading from the categories YAML file.
             max_retries: Maximum retry attempts.
 
         Returns:
             ClassificationResult with category, subcategory, and title.
         """
-        # Hot-reload categories from disk
-        categories = self._load_categories()
+        # Use provided categories or hot-reload from disk as fallback
+        if categories is None:
+            categories = self._load_categories()
 
         # Build system prompt: instructions + categories
         categories_text = self._format_categories_text(categories)
