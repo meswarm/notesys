@@ -1,43 +1,11 @@
 # config/categories.yaml
-# 笔记分类枚举表 - 模型优先从此表中选择
-
-categories:
-  操作系统:
-  - Linux
-  - Windows
-  - macOS
-  编程:
-  - Python
-  - Go
-  - JavaScript
-  - TypeScript
-  - Rust
-  - Java
-  - C/C++
-  - Flutter
-  工具:
-  - Docker
-  - Git
-  - VS Code
-  - Vim
-  网络:
-  - 网络协议
-  - 网络安全
-  - Web开发
-  数据库:
-  - MySQL
-  - PostgreSQL
-  - Redis
-  - MongoDB
-  AI与机器学习:
-  - 大模型
-  - 深度学习
-  - NLP
-  硬件:
-  - 树莓派
-  - Arduino
-  - 嵌入式
-  其他:
-  - 生活
-  - 学习方法
-  - 项目管理
+# ⚠️ 此文件已废弃（v0.3.0）
+#
+# 分类体系现在由 notes_root_path 下的实际一二级目录结构动态扫描生成。
+# 如需新增分类，直接在笔记目录下创建对应子目录即可，例如：
+#
+#   mkdir -p /your/vault/工作/会议记录
+#   mkdir -p /your/vault/AI/提示词工程
+#
+# 当目录为空时，此文件内容会作为备选分类传给 LLM（fallback）。
+# 维持此文件内容不会有任何负面影响，但也无需主动维护。

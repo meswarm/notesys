@@ -1,5 +1,8 @@
 # config/models.yaml
+# notesys v0.3.0 — 仅保留三个流水线步骤的模型配置
+
 models:
+  # 步骤 1：图像语义提取（qwen3-vl-flash，视觉理解模型）
   image_semantic:
     provider: "dashscope"
     model: "qwen3-vl-flash"
@@ -7,6 +10,7 @@ models:
     max_tokens: 2000
     enable_thinking: false
 
+  # 步骤 2：笔记内容整理（qwen3.5-plus，最强改写能力）
   note_organizer:
     provider: "dashscope"
     model: "qwen3.5-plus"
@@ -14,6 +18,7 @@ models:
     max_tokens: 16384
     enable_thinking: true
 
+  # 步骤 3：笔记分类（qwen3.5-flash，轻量快速）
   note_classifier:
     provider: "dashscope"
     model: "qwen3.5-flash"
@@ -21,55 +26,12 @@ models:
     max_tokens: 500
     enable_thinking: false
 
-  embedding:
-    provider: "dashscope"
-    model: "text-embedding-v4"
-    dimension: 1024
-    output_type: "dense&sparse"
-    batch_size: 10
-    max_tokens_per_text: 8192
-
-  query_rewriter:
-    provider: "dashscope"
-    model: "qwen3.5-flash"
-    temperature: 0.3
-    max_tokens: 500
-    enable_thinking: false
-
-  query_synthesizer:
-    provider: "dashscope"
-    model: "qwen3.5-plus"
-    temperature: 0.5
-    max_tokens: 8192
-    enable_thinking: false
-
-qdrant:
-  host: "localhost"
-  port: 6333
-  grpc_port: 6334
-  collection: "notes"
-
+# 服务端默认笔记存储目录（可被 API 请求中的 notes_root_path 覆盖）
 note_storage:
   root_path: "./notes"
-  max_directory_depth: 2
 
-chunking:
-  max_chunk_tokens: 500
-  overlap_tokens: 50
-
+# 流水线步骤默认开关（可被 API 请求参数逐次覆盖）
 organize:
-  enable_image_semantic: true   # 是否启用图像语义提取（VL 模型调用）
-  enable_note_format: true      # 是否启用笔记内容整理（LLM 调用）
-  enable_classify_and_save: true # 是否启用分类+存储（LLM 调用 + 文件写入）
-  enable_embedding: true        # 是否启用分块向量嵌入（嵌入模型 + Qdrant）
-
-query:
-  enable_rewrite: false      # 是否启用查询词重写（LLM 调用，增加延迟）
-  enable_synthesis: false    # 是否启用结果综合整理（LLM 调用，增加延迟）
-
-sync:
-  enabled: true              # 是否启用定时向量同步
-  interval_seconds: 900      # 同步间隔（秒），默认 5 分钟
-  batch_limit: 20            # 每轮同步最多处理的文件数（控制 API 成本）
-  min_depth: 1               # 最小目录深度（0=根目录，1=至少一级子目录），根目录下的草稿文件不同步
-
+  enable_image_semantic: true   # 图像语义提取（VL 模型调用）
+  enable_note_format: true      # 笔记内容整理（LLM 调用）
+  enable_classify_and_save: true # 分类 + 保存（LLM 调用 + 文件写入）
