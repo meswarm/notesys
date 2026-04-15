@@ -1,6 +1,6 @@
 # NoteSystem Agent — 管理员指南
 
-> 版本 v0.2.0
+> 版本 v0.3.0
 
 ---
 
@@ -11,7 +11,7 @@
 - [首次部署](#首次部署)
 - [环境变量配置](#环境变量配置)
 - [模型参数配置](#模型参数配置)
-- [笔记分类配置](#笔记分类配置)
+- [笔记分类机制](#笔记分类机制)
 - [启动与停止服务](#启动与停止服务)
 - [修改服务端口](#修改服务端口)
 - [与 ragData 集成](#与-ragdata-集成)
@@ -38,8 +38,7 @@ notesys/
 ├── .env                    # 环境变量（密钥、路径、端口）← 主要配置入口
 ├── .env.example            # 环境变量模板（不含敏感信息，可提交 git）
 ├── config/
-│   ├── models.yaml         # 各流水线步骤的模型和参数配置
-│   └── categories.yaml     # 笔记分类体系定义
+│   └── models.yaml         # 各流水线步骤的模型和参数配置（categories.yaml 已废弃）
 ├── docs/
 │   ├── API.md              # HTTP 接口说明（给调用方看）
 │   └── ADMIN.md            # 本文档（给管理员/运维看）
@@ -47,6 +46,8 @@ notesys/
 ├── tests/                  # 单元测试
 └── pyproject.toml          # Python 依赖定义
 ```
+
+> **v0.3.0 变化：** `categories.yaml` 已废弃。分类体系由笔记存储目录的实际一二级目录结构动态生成，无需维护静态配置文件。
 
 ---
 
@@ -72,14 +73,18 @@ pip install -e .
 
 ```bash
 cp .env.example .env
-vim .env   # 填入必填项，见下节说明
+vim .env   # 至少填入 DASHSCOPE_API_KEY
 ```
 
-### 4. 确认笔记存储目录存在
+### 4. （可选）确认默认笔记目录存在
+
+如果设置了 `NOTES_ROOT_PATH`，确保知该目录存在：
 
 ```bash
 mkdir -p /your/notes/vault
 ```
+
+> **提示：** v0.3.0 起 `NOTES_ROOT_PATH` 是**可选的服务端默认值**。调用方可在每次请求中通过 `notes_root_path` 字段自行指定目录，服务端不需要提前知道目录在哪里。
 
 ### 5. 启动服务
 
@@ -100,26 +105,24 @@ uvicorn src.main:app --port ${PORT:-8002}
 
 ```dotenv
 # ─── 必填 ───────────────────────────────────────────────
-# 阿里云 DashScope API Key（用于调用 Qwen 系列模型和嵌入模型）
-# 获取地址：https://bailian.console.aliyun.com/
 DASHSCOPE_API_KEY=sk-xxxxxxxxxxxx
 
-# 笔记存储根目录（绝对路径）
-# 所有整理后的笔记都将按分类存储在此目录下
+# ─── 可选 ───────────────────────────────────────────────
+# 服务端全局默认笔记目录（绝对路径）
+# 调用方可在每次请求中通过 notes_root_path 字段覆盖此默认值
 NOTES_ROOT_PATH=/home/txl/Code/meswarm/notes/vault
 
-# ─── 可选 ───────────────────────────────────────────────
 # 服务 HTTP 端口（默认 8002）
 PORT=8002
 ```
 
 ### 各变量说明
 
-| 变量 | 默认值 | 说明 |
+| 变量 | 是否必填 | 说明 |
 |------|--------|------|
-| `DASHSCOPE_API_KEY` | 无，**必填** | 阿里云百炼 API Key，所有 LLM 调用依赖此 Key |
-| `NOTES_ROOT_PATH` | `./notes` | 笔记存储根目录。建议使用绝对路径，避免相对路径歧义 |
-| `PORT` | `8002` | 服务监听端口，由启动命令读取 |
+| `DASHSCOPE_API_KEY` | **必填** | 阿里云百炼 API Key，所有 LLM 调用依赖此 Key |
+| `NOTES_ROOT_PATH` | 可选 | 服务端全局默认目录。如果所有调用方都在请求中传 `notes_root_path`，此项可不设置 |
+| `PORT` | 可选 | 服务监听端口，默认 8002 |
 
 > ⚠️ `.env` 包含密钥，**不要提交到版本控制系统**。已在 `.gitignore` 中排除。
 
@@ -173,37 +176,34 @@ organize:
 
 ---
 
-## 笔记分类配置
+## 笔记分类机制
 
-文件：`config/categories.yaml`
+**v0.3.0 起，分类由实际目录结构决定，不再依赖 `categories.yaml`。**
 
-定义笔记的分类体系（一级 + 二级）。AI 会根据此文件的类目给笔记归类。
+每次笔记分类时，流水线会扫描 `notes_root_path`（或服务端 `NOTES_ROOT_PATH`）的一级和二级子目录，生成当前分类列表传给 LLM：
 
-```yaml
-categories:
-  编程:
-    - Python
-    - Go
-    - JavaScript
-    - Flutter
-  工具:
-    - Docker
-    - VS Code
-    - Git
-  操作系统:
-    - Linux
-    - Windows
-  网络:
-    - 网络协议
-    - Web开发
-  AI与机器学习:
-    - 大语言模型
-    - 提示词工程
+```
+notes_root_path/          ← 扫描这两层
+├── 编程/              ← 一级分类
+│   ├── Python/        ← 二级分类
+│   └── Go/
+├── 工具/
+│   ├── Docker/
+│   └── VS Code/
+└── 操作系统/
+    └── Linux/
 ```
 
-**修改后立即生效**（无需重启，系统每次分类时热读取）。
+LLM 优先从已有分类中选择。如果笔记内容不属于任何现有分类，则自由命名枰一个新分类，**目录在写入文件时自动创建**。
 
-**注意：** 如果你添加了新类目，已存储在磁盘上的历史笔记不会自动迁移，只影响后续新笔记。
+**自建分类的方法：** 直接在 `notes_root_path` 下手动创建目录即可，下次请求时即自动生效：
+
+```bash
+mkdir -p /your/notes/vault/工作/会议记录
+mkdir -p /your/notes/vault/AI/提示词工程
+```
+
+> ♻️ **退化兼容：** `config/categories.yaml` 仍存在且在目录为空时不会被扫描到时会展示纻 YAML 内容看作备选分类。**如果目录已存在更多内容，将优先使用目录扫描。**
 
 ---
 
@@ -323,16 +323,19 @@ curl -X POST http://localhost:8001/sync/notes
 
 ## 常见问题
 
-### 服务启动报错 `Notes root directory does not exist`
+### 服务启动错误 / 警告 `NOTES_ROOT_PATH does not exist`
 
-`NOTES_ROOT_PATH` 指向的目录不存在，创建它：
-```bash
-mkdir -p /your/notes/vault
-```
+v0.3.0 起改为软警告，不再阻止启动。两种处理方式：
 
-### 分类结果不对 / 总是归到"未分类"
+- **方案 A**：创建默认目录
+  ```bash
+  mkdir -p /your/notes/vault
+  ```
+- **方案 B**：不设置 `NOTES_ROOT_PATH`，请求时始终传 `notes_root_path` 字段
 
-1. 检查 `config/categories.yaml` 是否有合适的类目
+### 分类结果不对 / 总是归到“未分类”
+
+1. 检查 `notes_root_path` 下是否已有合适的一二级目录（分类来源）
 2. 尝试提高 `note_classifier` 的模型档次（改用 `qwen3.5-plus`）
 3. 确认 `DASHSCOPE_API_KEY` 有效
 

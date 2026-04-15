@@ -1,6 +1,6 @@
 # NoteSystem Agent — API 文档
 
-> 版本 v0.2.0 | 服务地址：`http://localhost:${PORT}` (默认端口 8002)
+> 版本 v0.3.0 | 服务地址：`http://localhost:${PORT}` (默认端口 8002)
 
 ---
 
@@ -39,26 +39,38 @@ Content-Type: application/json
 
 #### 请求体字段
 
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `markdown_content` | `string` | ✅ | 原始 Markdown 笔记内容 |
-| `images_dir` | `string` | ❌ | 笔记引用的图片所在目录（绝对路径）；不填则使用 `NOTES_ROOT_PATH` |
-| `enable_image_semantic` | `bool \| null` | ❌ | 是否开启图像语义提取（null = 读取服务端配置默认值） |
-| `enable_note_format` | `bool \| null` | ❌ | 是否开启笔记内容整理（null = 读取服务端配置默认值） |
-| `enable_classify_and_save` | `bool \| null` | ❌ | 是否开启分类 + 保存到文件（null = 读取服务端配置默认值） |
+| 字段 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `markdown_content` | `string` | ✅ | — | 原始 Markdown 笔记内容 |
+| `notes_root_path` | `string \| null` | ❌ | 服务端 `.env` 中 `NOTES_ROOT_PATH` | 笔记存储根目录（绝对路径）。**分类列表由该目录的一二级子目录动态扫描生成**，无需维护 categories.yaml |
+| `images_dir` | `string \| null` | ❌ | `notes_root_path` | 笔记引用图片所在目录（绝对路径）；不填则与 `notes_root_path` 相同 |
+| `enable_image_semantic` | `bool \| null` | ❌ | 读取配置文件 | 是否开启图像语义提取 |
+| `enable_note_format` | `bool \| null` | ❌ | 读取配置文件 | 是否开启笔记内容整理 |
+| `enable_classify_and_save` | `bool \| null` | ❌ | 读取配置文件 | 是否开启 AI 分类 + 保存到文件 |
+| `add_date_stamp` | `bool` | ❌ | `true` | 是否在保存前插入日期行（格式 `YYYY-MM-DD`） |
 
-> **说明：** 三个 `enable_*` 字段均为可选，传 `null` 或不传时，服务使用 `config/models.yaml` 中的 `organize` 配置作为默认值。
+> **分类来源说明：** 服务会扫描 `notes_root_path` 下的一级和二级目录作为可选分类。目录不存在时 LLM 自由命名，并在写文件时自动创建目录。
+
+> **`enable_*` 优先级：** API 参数 > `config/models.yaml` 中的 `organize` 配置。
 
 #### 请求示例
 
 ```bash
+# 最简调用（使用服务端默认目录和配置）
+curl -X POST http://localhost:8002/api/organize \
+  -H "Content-Type: application/json" \
+  -d '{"markdown_content": "# Docker 快速入门\n\nDocker 是一个容器化平台。"}'
+
+# 指定目录（另一个项目的笔记库）
 curl -X POST http://localhost:8002/api/organize \
   -H "Content-Type: application/json" \
   -d '{
-    "markdown_content": "# Docker 快速入门\n\nDocker 是一个容器化平台，允许在隔离环境中运行应用程序。",
+    "markdown_content": "# Docker 快速入门\n\nDocker 是一个容器化平台。",
+    "notes_root_path": "/home/user/my-project/notes",
     "enable_image_semantic": false,
     "enable_note_format": true,
-    "enable_classify_and_save": true
+    "enable_classify_and_save": true,
+    "add_date_stamp": true
   }'
 ```
 
@@ -158,7 +170,7 @@ data: <JSON 字符串>
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | `success` | `bool` | 任务是否成功 |
-| `note_path` | `string` | 相对于 `NOTES_ROOT_PATH` 的存储路径（`enable_classify_and_save=false` 时为空）|
+| `note_path` | `string` | 相对于 `notes_root_path` 的存储路径，如 `编程/Python/Python asyncio 入门.md`（`enable_classify_and_save=false` 时为空）|
 | `category` | `string` | 笔记一级分类 |
 | `subcategory` | `string` | 笔记二级分类 |
 | `title` | `string` | AI 生成的笔记标题 |
@@ -235,7 +247,7 @@ curl http://localhost:8002/health
 {
   "status": "ok",
   "service": "notesys",
-  "version": "0.2.0"
+  "version": "0.3.0"
 }
 ```
 
@@ -258,7 +270,8 @@ curl http://localhost:8002/health
 **注意事项：**
 - `task_id` 仅在服务运行期间有效（内存存储），服务重启后失效
 - `stream` 连接断开后任务仍在后台继续执行（断开不等于取消）
-- 文件保存路径为相对于 `NOTES_ROOT_PATH` 的相对路径
+- `note_path` 是相对于 `notes_root_path` 的相对路径
+- 分类由 `notes_root_path` 下的实际目录结构决定，无需维护静态配置文件
 - 若 ragData 服务在运行，文件保存后会在下次同步周期内被自动向量化
 
 ---
