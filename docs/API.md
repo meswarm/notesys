@@ -1,6 +1,6 @@
 # NoteSystem Agent — API 文档
 
-> 版本 v0.3.0 | 服务地址：`http://localhost:${PORT}` (默认端口 8002)
+> 版本 v0.3.0 | 服务地址：`http://localhost:${PORT}` (默认端口 48002)
 
 ---
 
@@ -57,12 +57,12 @@ Content-Type: application/json
 
 ```bash
 # 最简调用（使用服务端默认目录和配置）
-curl -X POST http://localhost:8002/api/organize \
+curl -X POST http://localhost:48002/api/organize \
   -H "Content-Type: application/json" \
   -d '{"markdown_content": "# Docker 快速入门\n\nDocker 是一个容器化平台。"}'
 
 # 指定目录（另一个项目的笔记库）
-curl -X POST http://localhost:8002/api/organize \
+curl -X POST http://localhost:48002/api/organize \
   -H "Content-Type: application/json" \
   -d '{
     "markdown_content": "# Docker 快速入门\n\nDocker 是一个容器化平台。",
@@ -195,7 +195,7 @@ data: <JSON 字符串>
 
 **curl:**
 ```bash
-curl -N "http://localhost:8002/api/organize/a1b2c3d4-.../stream"
+curl -N "http://localhost:48002/api/organize/a1b2c3d4-.../stream"
 ```
 
 **Python:**
@@ -204,7 +204,7 @@ import httpx, json
 
 task_id = "a1b2c3-..."
 
-with httpx.stream("GET", f"http://localhost:8002/api/organize/{task_id}/stream") as r:
+with httpx.stream("GET", f"http://localhost:48002/api/organize/{task_id}/stream") as r:
     for line in r.iter_lines():
         if line.startswith("data:"):
             event = json.loads(line[5:].strip())
@@ -214,7 +214,7 @@ with httpx.stream("GET", f"http://localhost:8002/api/organize/{task_id}/stream")
 **JavaScript (Browser / Node):**
 ```javascript
 const source = new EventSource(
-  `http://localhost:8002/api/organize/${taskId}/stream`
+  `http://localhost:48002/api/organize/${taskId}/stream`
 );
 
 source.addEventListener("progress", (e) => {
@@ -240,7 +240,7 @@ source.addEventListener("error", () => source.close());
 健康检查，用于监控服务是否存活。
 
 ```bash
-curl http://localhost:8002/health
+curl http://localhost:48002/health
 ```
 
 ```json

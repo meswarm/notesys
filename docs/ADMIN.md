@@ -90,10 +90,10 @@ mkdir -p /your/notes/vault
 
 ```bash
 source .venv/bin/activate
-uvicorn src.main:app --port ${PORT:-8002}
+uvicorn src.main:app --port ${PORT:-48002}
 ```
 
-访问 `http://localhost:8002/docs` 验证服务正常。
+访问 `http://localhost:48002/docs` 验证服务正常。
 
 ---
 
@@ -112,8 +112,8 @@ DASHSCOPE_API_KEY=sk-xxxxxxxxxxxx
 # 调用方可在每次请求中通过 notes_root_path 字段覆盖此默认值
 NOTES_ROOT_PATH=/home/txl/Code/meswarm/notes/vault
 
-# 服务 HTTP 端口（默认 8002）
-PORT=8002
+# 服务 HTTP 端口（默认 48002）
+PORT=48002
 ```
 
 ### 各变量说明
@@ -122,7 +122,7 @@ PORT=8002
 |------|--------|------|
 | `DASHSCOPE_API_KEY` | **必填** | 阿里云百炼 API Key，所有 LLM 调用依赖此 Key |
 | `NOTES_ROOT_PATH` | 可选 | 服务端全局默认目录。如果所有调用方都在请求中传 `notes_root_path`，此项可不设置 |
-| `PORT` | 可选 | 服务监听端口，默认 8002 |
+| `PORT` | 可选 | 服务监听端口，默认 48002 |
 
 > ⚠️ `.env` 包含密钥，**不要提交到版本控制系统**。已在 `.gitignore` 中排除。
 
@@ -214,7 +214,7 @@ mkdir -p /your/notes/vault/AI/提示词工程
 ```bash
 cd /home/txl/Code/meswarm/notes/notesys
 source .venv/bin/activate
-uvicorn src.main:app --port ${PORT:-8002} --log-level info
+uvicorn src.main:app --port ${PORT:-48002} --log-level info
 ```
 
 按 `Ctrl+C` 停止。
@@ -227,7 +227,7 @@ uvicorn src.main:app --port ${PORT:-8002} --log-level info
 ```bash
 cd /home/txl/Code/meswarm/notes/notesys
 source .venv/bin/activate
-nohup uvicorn src.main:app --port ${PORT:-8002} > logs/notesys.log 2>&1 &
+nohup uvicorn src.main:app --port ${PORT:-48002} > logs/notesys.log 2>&1 &
 echo $! > notesys.pid
 echo "Started PID $(cat notesys.pid)"
 ```
@@ -252,7 +252,7 @@ User=txl
 WorkingDirectory=/home/txl/Code/meswarm/notes/notesys
 EnvironmentFile=/home/txl/Code/meswarm/notes/notesys/.env
 ExecStart=/home/txl/Code/meswarm/notes/notesys/.venv/bin/uvicorn \
-    src.main:app --port 8002 --host 0.0.0.0
+    src.main:app --port 48002 --host 0.0.0.0
 Restart=on-failure
 RestartSec=5
 
@@ -283,7 +283,7 @@ PORT=9000   # 改为你想要的端口
 
 ```bash
 # 如果是前台运行，Ctrl+C 后重新执行：
-uvicorn src.main:app --port ${PORT:-8002}
+uvicorn src.main:app --port ${PORT:-48002}
 
 # 如果是 systemd：
 sudo systemctl restart notesys
@@ -291,7 +291,7 @@ sudo systemctl restart notesys
 
 3. 通知所有调用方更新地址。
 
-> **原理：** 启动命令使用 `${PORT:-8002}` 读取环境变量，`.env` 中的 `PORT` 会被 shell 自动导出。如果使用 systemd，`EnvironmentFile` 字段负责加载 `.env`。
+> **原理：** 启动命令使用 `${PORT:-48002}` 读取环境变量，`.env` 中的 `PORT` 会被 shell 自动导出。如果使用 systemd，`EnvironmentFile` 字段负责加载 `.env`。
 
 ---
 
@@ -354,7 +354,7 @@ find /home/txl/Code/meswarm/notes/vault -name "*.md" | sort | tail -20
 
 ```bash
 # 查看占用端口的进程
-lsof -i :8002
+lsof -i :48002
 
 # 修改 .env 中的 PORT 换一个端口
 ```

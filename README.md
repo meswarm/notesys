@@ -74,19 +74,19 @@ cp .env.example .env
 
 ### 启动服务
 
-端口由 `.env` 中的 `PORT` 变量控制（默认 8002）：
+端口由 `.env` 中的 `PORT` 变量控制（默认 48002）：
 
 ```bash
-uvicorn src.main:app --port ${PORT:-8002}
+uvicorn src.main:app --port ${PORT:-48002}
 ```
 
 服务启动后可访问：
 
-- Swagger UI：`http://localhost:8002/docs`
-- 健康检查：`http://localhost:8002/health`
+- Swagger UI：`http://localhost:48002/docs`
+- 健康检查：`http://localhost:48002/health`
 
 ```bash
-curl http://localhost:8002/health
+curl http://localhost:48002/health
 # {"status": "ok", "service": "notesys", "version": "0.2.0"}
 ```
 
@@ -143,12 +143,12 @@ Content-Type: application/json
 
 ```bash
 # 全流程（使用配置文件默认值）
-curl -X POST http://localhost:8002/api/organize \
+curl -X POST http://localhost:48002/api/organize \
   -H "Content-Type: application/json" \
   -d '{"markdown_content": "# 我的笔记\n\n内容..."}'
 
 # 仅分类保存，跳过图像处理和格式整理
-curl -X POST http://localhost:8002/api/organize \
+curl -X POST http://localhost:48002/api/organize \
   -H "Content-Type: application/json" \
   -d '{"markdown_content": "...", "enable_image_semantic": false, "enable_note_format": false}'
 ```
