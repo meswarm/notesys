@@ -13,7 +13,7 @@ models:
   # 步骤 2：笔记内容整理（qwen3.5-plus，最强改写能力）
   note_organizer:
     provider: "dashscope"
-    model: "qwen3.5-plus"
+    model: "qwen3.6-plus"
     temperature: 0.7
     max_tokens: 16384
     enable_thinking: true
@@ -21,7 +21,7 @@ models:
   # 步骤 3：笔记分类（qwen3.5-flash，轻量快速）
   note_classifier:
     provider: "dashscope"
-    model: "qwen3.5-flash"
+    model: "qwen3.6-flash"
     temperature: 0.1
     max_tokens: 500
     enable_thinking: false

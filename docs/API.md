@@ -9,6 +9,7 @@
 NoteSystem Agent 提供笔记自动整理能力，通过 HTTP API 接收原始 Markdown 内容，经由 AI 流水线处理后将笔记保存到本地文件系统。
 
 **交互模式（异步 + SSE）：**
+
 1. 调用 `POST /api/organize` 提交任务 → 立即获得 `task_id`
 2. 连接 `GET /api/organize/{task_id}/stream` → 通过 SSE 实时接收进度和结果
 
@@ -16,13 +17,15 @@ NoteSystem Agent 提供笔记自动整理能力，通过 HTTP API 接收原始 M
 
 ## 接口列表
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| `POST` | `/api/organize` | 提交笔记整理任务 |
-| `GET` | `/api/organize/{task_id}/stream` | SSE 订阅任务进度与结果 |
-| `GET` | `/health` | 服务健康检查 |
-| `GET` | `/` | 服务基本信息 |
-| `GET` | `/docs` | 交互式 API 文档（Swagger UI） |
+
+| 方法     | 路径                               | 说明                     |
+| ------ | -------------------------------- | ---------------------- |
+| `POST` | `/api/organize`                  | 提交笔记整理任务               |
+| `GET`  | `/api/organize/{task_id}/stream` | SSE 订阅任务进度与结果          |
+| `GET`  | `/health`                        | 服务健康检查                 |
+| `GET`  | `/`                              | 服务基本信息                 |
+| `GET`  | `/docs`                          | 交互式 API 文档（Swagger UI） |
+
 
 ---
 
@@ -39,19 +42,21 @@ Content-Type: application/json
 
 #### 请求体字段
 
-| 字段 | 类型 | 必填 | 默认值 | 说明 |
-|------|------|------|--------|------|
-| `markdown_content` | `string` | ✅ | — | 原始 Markdown 笔记内容 |
-| `notes_root_path` | `string \| null` | ❌ | 服务端 `.env` 中 `NOTES_ROOT_PATH` | 笔记存储根目录（绝对路径）。**分类列表由该目录的一二级子目录动态扫描生成**，无需维护 categories.yaml |
-| `images_dir` | `string \| null` | ❌ | `notes_root_path` | 笔记引用图片所在目录（绝对路径）；不填则与 `notes_root_path` 相同 |
-| `enable_image_semantic` | `bool \| null` | ❌ | 读取配置文件 | 是否开启图像语义提取 |
-| `enable_note_format` | `bool \| null` | ❌ | 读取配置文件 | 是否开启笔记内容整理 |
-| `enable_classify_and_save` | `bool \| null` | ❌ | 读取配置文件 | 是否开启 AI 分类 + 保存到文件 |
-| `add_date_stamp` | `bool` | ❌ | `true` | 是否在保存前插入日期行（格式 `YYYY-MM-DD`） |
+
+| 字段                         | 类型       | 必填    | 默认值    | 说明                             |
+| -------------------------- | -------- | ----- | ------ | ------------------------------ |
+| `markdown_content`         | `string` | ✅     | —      | 原始 Markdown 笔记内容               |
+| `notes_root_path`          | `string  | null` | ❌      | 服务端 `.env` 中 `NOTES_ROOT_PATH` |
+| `images_dir`               | `string  | null` | ❌      | `notes_root_path`              |
+| `enable_image_semantic`    | `bool    | null` | ❌      | 读取配置文件                         |
+| `enable_note_format`       | `bool    | null` | ❌      | 读取配置文件                         |
+| `enable_classify_and_save` | `bool    | null` | ❌      | 读取配置文件                         |
+| `add_date_stamp`           | `bool`   | ❌     | `true` | 是否在保存前插入日期行（格式 `YYYY-MM-DD`）   |
+
 
 > **分类来源说明：** 服务会扫描 `notes_root_path` 下的一级和二级目录作为可选分类。目录不存在时 LLM 自由命名，并在写文件时自动创建目录。
 
-> **`enable_*` 优先级：** API 参数 > `config/models.yaml` 中的 `organize` 配置。
+> `**enable_`* 优先级：** API 参数 > `config/models.yaml` 中的 `organize` 配置。
 
 #### 请求示例
 
@@ -83,10 +88,12 @@ curl -X POST http://localhost:48002/api/organize \
 }
 ```
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
+
+| 字段        | 类型       | 说明                       |
+| --------- | -------- | ------------------------ |
 | `task_id` | `string` | 用于订阅 SSE 流的唯一任务 ID（UUID） |
-| `message` | `string` | 固定提示文本 |
+| `message` | `string` | 固定提示文本                   |
+
 
 ---
 
@@ -128,21 +135,25 @@ data: <JSON 字符串>
 }
 ```
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `step` | `string` | 当前步骤标识，见下表 |
-| `progress` | `float` | 整体进度 0.0 ~ 1.0 |
-| `message` | `string` | 步骤状态描述文本 |
-| `timestamp` | `string` | ISO 8601 时间戳 |
+
+| 字段          | 类型       | 说明             |
+| ----------- | -------- | -------------- |
+| `step`      | `string` | 当前步骤标识，见下表     |
+| `progress`  | `float`  | 整体进度 0.0 ~ 1.0 |
+| `message`   | `string` | 步骤状态描述文本       |
+| `timestamp` | `string` | ISO 8601 时间戳   |
+
 
 **步骤标识说明：**
 
-| `step` 值 | 说明 |
-|-----------|------|
+
+| `step` 值         | 说明                     |
+| ---------------- | ---------------------- |
 | `image_semantic` | 图像语义提取（qwen3-vl-flash） |
-| `note_format` | 笔记内容整理（qwen3.5-plus） |
-| `note_classify` | AI 笔记分类（qwen3.5-flash） |
-| `file_save` | 保存到本地文件系统 |
+| `note_format`    | 笔记内容整理（qwen3.5-plus）   |
+| `note_classify`  | AI 笔记分类（qwen3.5-flash） |
+| `file_save`      | 保存到本地文件系统              |
+
 
 #### `result` — 最终结果
 
@@ -167,16 +178,18 @@ data: <JSON 字符串>
 }
 ```
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `success` | `bool` | 任务是否成功 |
-| `note_path` | `string` | 相对于 `notes_root_path` 的存储路径，如 `编程/Python/Python asyncio 入门.md`（`enable_classify_and_save=false` 时为空）|
-| `category` | `string` | 笔记一级分类 |
-| `subcategory` | `string` | 笔记二级分类 |
-| `title` | `string` | AI 生成的笔记标题 |
-| `token_summary` | `object` | Token 用量和费用统计 |
-| `processed_content` | `string \| null` | 仅当 `enable_classify_and_save=false` 时返回处理后的 Markdown 内容 |
-| `timestamp` | `string` | ISO 8601 时间戳 |
+
+| 字段                  | 类型       | 说明                                                                                                   |
+| ------------------- | -------- | ---------------------------------------------------------------------------------------------------- |
+| `success`           | `bool`   | 任务是否成功                                                                                               |
+| `note_path`         | `string` | 相对于 `notes_root_path` 的存储路径，如 `编程/Python/Python asyncio 入门.md`（`enable_classify_and_save=false` 时为空） |
+| `category`          | `string` | 笔记一级分类                                                                                               |
+| `subcategory`       | `string` | 笔记二级分类                                                                                               |
+| `title`             | `string` | AI 生成的笔记标题                                                                                           |
+| `token_summary`     | `object` | Token 用量和费用统计                                                                                        |
+| `processed_content` | `string  | null`                                                                                                |
+| `timestamp`         | `string` | ISO 8601 时间戳                                                                                         |
+
 
 #### `error` — 错误事件
 
@@ -194,11 +207,13 @@ data: <JSON 字符串>
 ### SSE 订阅示例
 
 **curl:**
+
 ```bash
 curl -N "http://localhost:48002/api/organize/a1b2c3d4-.../stream"
 ```
 
 **Python:**
+
 ```python
 import httpx, json
 
@@ -212,6 +227,7 @@ with httpx.stream("GET", f"http://localhost:48002/api/organize/{task_id}/stream"
 ```
 
 **JavaScript (Browser / Node):**
+
 ```javascript
 const source = new EventSource(
   `http://localhost:48002/api/organize/${taskId}/stream`
@@ -268,6 +284,7 @@ curl http://localhost:48002/health
 ```
 
 **注意事项：**
+
 - `task_id` 仅在服务运行期间有效（内存存储），服务重启后失效
 - `stream` 连接断开后任务仍在后台继续执行（断开不等于取消）
 - `note_path` 是相对于 `notes_root_path` 的相对路径
@@ -278,9 +295,12 @@ curl http://localhost:48002/health
 
 ## 错误码
 
-| HTTP 状态码 | 含义 |
-|------------|------|
-| `200` | 请求成功（任务提交成功或 SSE 流正常） |
-| `404` | `task_id` 不存在（已过期或服务曾重启） |
-| `422` | 请求体格式错误（缺少必填字段等） |
-| `500` | 服务内部错误 |
+
+| HTTP 状态码 | 含义                       |
+| -------- | ------------------------ |
+| `200`    | 请求成功（任务提交成功或 SSE 流正常）    |
+| `404`    | `task_id` 不存在（已过期或服务曾重启） |
+| `422`    | 请求体格式错误（缺少必填字段等）         |
+| `500`    | 服务内部错误                   |
+
+

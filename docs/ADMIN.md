@@ -118,11 +118,13 @@ PORT=48002
 
 ### 各变量说明
 
-| 变量 | 是否必填 | 说明 |
-|------|--------|------|
-| `DASHSCOPE_API_KEY` | **必填** | 阿里云百炼 API Key，所有 LLM 调用依赖此 Key |
-| `NOTES_ROOT_PATH` | 可选 | 服务端全局默认目录。如果所有调用方都在请求中传 `notes_root_path`，此项可不设置 |
-| `PORT` | 可选 | 服务监听端口，默认 48002 |
+
+| 变量                  | 是否必填   | 说明                                               |
+| ------------------- | ------ | ------------------------------------------------ |
+| `DASHSCOPE_API_KEY` | **必填** | 阿里云百炼 API Key，所有 LLM 调用依赖此 Key                   |
+| `NOTES_ROOT_PATH`   | 可选     | 服务端全局默认目录。如果所有调用方都在请求中传 `notes_root_path`，此项可不设置 |
+| `PORT`              | 可选     | 服务监听端口，默认 48002                                  |
+
 
 > ⚠️ `.env` 包含密钥，**不要提交到版本控制系统**。已在 `.gitignore` 中排除。
 
@@ -168,11 +170,13 @@ organize:
 
 **调参建议：**
 
-| 场景 | 建议调整 |
-|------|---------|
-| 降低 API 费用 | `note_organizer` 改用 `qwen3.5-flash` |
-| 提升分类准确率 | `note_classifier` 改用 `qwen3.5-plus`，降低 `temperature` 到 0.05 |
-| 关闭整理默认开关 | `organize.enable_note_format: false` |
+
+| 场景        | 建议调整                                                        |
+| --------- | ----------------------------------------------------------- |
+| 降低 API 费用 | `note_organizer` 改用 `qwen3.5-flash`                         |
+| 提升分类准确率   | `note_classifier` 改用 `qwen3.5-plus`，降低 `temperature` 到 0.05 |
+| 关闭整理默认开关  | `organize.enable_note_format: false`                        |
+
 
 ---
 
@@ -224,6 +228,7 @@ uvicorn src.main:app --port ${PORT:-48002} --log-level info
 推荐使用 `nohup` 或 `systemd`：
 
 **nohup 方式：**
+
 ```bash
 cd /home/txl/Code/meswarm/notes/notesys
 source .venv/bin/activate
@@ -233,6 +238,7 @@ echo "Started PID $(cat notesys.pid)"
 ```
 
 停止：
+
 ```bash
 kill $(cat notesys.pid) && rm notesys.pid
 ```
@@ -279,7 +285,7 @@ sudo systemctl status notesys
 PORT=9000   # 改为你想要的端口
 ```
 
-2. 重启服务：
+1. 重启服务：
 
 ```bash
 # 如果是前台运行，Ctrl+C 后重新执行：
@@ -289,7 +295,7 @@ uvicorn src.main:app --port ${PORT:-48002}
 sudo systemctl restart notesys
 ```
 
-3. 通知所有调用方更新地址。
+1. 通知所有调用方更新地址。
 
 > **原理：** 启动命令使用 `${PORT:-48002}` 读取环境变量，`.env` 中的 `PORT` 会被 shell 自动导出。如果使用 systemd，`EnvironmentFile` 字段负责加载 `.env`。
 
@@ -310,11 +316,13 @@ ragData 后台定时扫描（默认 5 分钟间隔）
 **无需任何手动操作**，只需确保 ragData 服务在运行，并且 ragData 的 `config/config.yaml` 中的 `directories` 包含了 notesys 的 `NOTES_ROOT_PATH`。
 
 检查 ragData 是否在监听正确目录：
+
 ```bash
 curl http://localhost:8001/sync/collections
 ```
 
 如需立即同步（不等待下一个周期）：
+
 ```bash
 curl -X POST http://localhost:8001/sync/notes
 ```
@@ -346,6 +354,7 @@ v0.3.0 起改为软警告，不再阻止启动。两种处理方式：
 ### 如何查看已处理笔记
 
 直接浏览 `NOTES_ROOT_PATH` 目录：
+
 ```bash
 find /home/txl/Code/meswarm/notes/vault -name "*.md" | sort | tail -20
 ```
@@ -358,3 +367,4 @@ lsof -i :48002
 
 # 修改 .env 中的 PORT 换一个端口
 ```
+
