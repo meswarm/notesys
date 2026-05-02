@@ -38,9 +38,12 @@ class NoteFormatter:
         Returns:
             Formatted Markdown content.
         """
+        protected_content, protected_spans = self._protect_immutable_markdown(
+            markdown_content
+        )
         messages = [
             {"role": "system", "content": [{"text": self._system_prompt}]},
-            {"role": "user", "content": [{"text": markdown_content}]},
+            {"role": "user", "content": [{"text": protected_content}]},
         ]
 
         response = await self._llm.chat_with_retry(
@@ -61,11 +64,62 @@ class NoteFormatter:
         if formatted.endswith("```"):
             formatted = formatted[:-3].strip()
 
+        if protected_spans:
+            missing = [
+                token for token in protected_spans
+                if token not in formatted
+            ]
+            if missing:
+                logger.warning(
+                    "Formatter dropped protected Markdown spans; "
+                    "falling back to unformatted protected input"
+                )
+                formatted = protected_content
+            formatted = self._restore_protected_spans(formatted, protected_spans)
+
         # Post-process: restore alt text from image-detail comments
         formatted = self._restore_image_alt_from_detail(formatted)
 
         logger.info(f"Note formatted: {len(markdown_content)} -> {len(formatted)} chars")
         return formatted
+
+    @staticmethod
+    def _protect_immutable_markdown(content: str) -> tuple[str, dict[str, str]]:
+        """Replace precise Markdown spans with placeholders before LLM formatting.
+
+        These spans often contain paths, URLs, commands, or exact syntax that should
+        be moved as a unit but never rewritten by the model.
+        """
+        spans: dict[str, str] = {}
+        protected = content
+
+        patterns = [
+            re.compile(r"```[\s\S]*?```"),
+            re.compile(r"~~~[\s\S]*?~~~"),
+            re.compile(r"!\[[^\]\n]*\]\([^)\n]+\)"),
+            re.compile(r"(?<!!)\[[^\]\n]+\]\([^)\n]+\)"),
+            re.compile(r"<https?://[^>\s]+>"),
+            re.compile(r"(?<!\]\()https?://[^\s<>)]+"),
+            re.compile(r"`[^`\n]+`"),
+        ]
+
+        def _store(match: re.Match) -> str:
+            token = f"NOTESYS_PROTECTED_{len(spans):04d}"
+            spans[token] = match.group(0)
+            return token
+
+        for pattern in patterns:
+            protected = pattern.sub(_store, protected)
+
+        return protected, spans
+
+    @staticmethod
+    def _restore_protected_spans(content: str, spans: dict[str, str]) -> str:
+        """Restore placeholders created by _protect_immutable_markdown."""
+        restored = content
+        for token, original in spans.items():
+            restored = restored.replace(token, original)
+        return restored
 
     @staticmethod
     def _restore_image_alt_from_detail(content: str) -> str:
@@ -92,4 +146,3 @@ class NoteFormatter:
             return f"{m.group(1)}{detail}{m.group(2)}"
 
         return pattern.sub(_replacer, content)
-

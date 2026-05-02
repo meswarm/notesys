@@ -20,11 +20,12 @@ class OrganizeRequest(BaseModel):
     """Request body for note organization."""
 
     markdown_content: str
-    images_dir: Optional[str] = None
+    notes_root_path: Optional[str] = None            # 笔记存储根目录（不填用服务端默认值）
+    images_dir: Optional[str] = None                # 图片目录（不填用 notes_root_path）
     enable_image_semantic: Optional[bool] = None    # None = 使用配置文件默认值
     enable_note_format: Optional[bool] = None       # None = 使用配置文件默认值
     enable_classify_and_save: Optional[bool] = None  # None = 使用配置文件默认值
-    enable_embedding: Optional[bool] = None          # None = 使用配置文件默认值
+    add_date_stamp: Optional[bool] = True            # 是否在保存前加日期戳（YYYY-MM-DD）
 
 
 class OrganizeResponse(BaseModel):
@@ -61,11 +62,12 @@ async def organize_note(request: OrganizeRequest):
             pipeline = get_pipeline()
             await pipeline.run(
                 raw_markdown=request.markdown_content,
+                notes_root_path=request.notes_root_path,
                 images_dir=request.images_dir,
                 enable_image_semantic=request.enable_image_semantic,
                 enable_note_format=request.enable_note_format,
                 enable_classify_and_save=request.enable_classify_and_save,
-                enable_embedding=request.enable_embedding,
+                add_date_stamp=request.add_date_stamp,
                 event_callback=event_callback,
             )
         finally:

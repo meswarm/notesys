@@ -52,4 +52,6 @@ htmlcov/
 !/README_EN.md
 /data/
 /notes/
+logs/
+notesys.pid
 /.agents/
